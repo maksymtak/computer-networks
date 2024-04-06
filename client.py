@@ -13,7 +13,7 @@ print('Welcome to Chat Client. Enter you login:')
 # Please put your code in this file
 
 
-def graceful_exit(sock):
+def graceful_exit(sock): # (not so) graceful exit
     print("goodbye")
     sock.close()
     exit()
@@ -41,10 +41,8 @@ def log_in():
     while (not logged): # while username is not set
         username = input("") # get name 
 
-
         if "!quit" in username:
             graceful_exit(sock)
-
 
         string_bytes = (f"HELLO-FROM {username} \n").encode("utf-8") # encode it
         #print(string_bytes)
@@ -80,41 +78,20 @@ def log_in():
             print(f"{msg}")
             
 
-def send_response(data):
-    
-    if "SEND-OK" in data:
-        print("The message was sent succesfully")
-    elif "BAD-DEST-USER" in data:
-        print("The destination user does not exist")
-    elif "DELIVERY" in data: # this is a biiiiig assumption but the only other return I got was when messaging myself
-        prt_message(data)
-    else:
-        print(data)
-        
 
 def send_message(terminal_input, sock):
-    terminal_input = terminal_input.strip("@")
+    terminal_input = terminal_input.strip("@") # get rid of the leading @ symbol
     x = terminal_input.split(" ", 1)
 
     string_bytes = (f"SEND {x[0]} {x[1]}\n").encode("utf-8") # encode it
     # print(string_bytes)
     bytes_len = len(string_bytes) 
     num_bytes_to_send = bytes_len
-    while num_bytes_to_send > 0: # send the name
+    while num_bytes_to_send > 0: # send the message
         num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
 
-    # data = sock.recv(4096) # get login response
-    # if not data:
-    #    print("Socket is closed.")
-        
-    #else:
-    #    data = data.decode("utf-8")
-    #    send_response(data)
 
-
-    
-
-def get_active_list(sock):
+def get_active_list(sock): # send user list request
 
     string_bytes = ("LIST\n").encode("utf-8") # encode it
     bytes_len = len(string_bytes) 
@@ -122,26 +99,14 @@ def get_active_list(sock):
     try:
         while num_bytes_to_send > 0: # send the request
             num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
-        # print("hih?")
-        # data = sock.recv(4096)
-        
-        # handle_response(data)
-        # print("hoh?")
-        # if not data:
-        #     print("Socket is closed.")
-        # else:
-        #    data = data.decode("utf-8")
-        #    plist = data.split(",")
-        #    plist[0] = plist[0].strip("LIST-OK ")
-        #    print(f"There are {len(plist)} online:")
-
     except OSError as msg:
         print(f"{msg} losing it")
 
 
-def prt_message(message):
-    x = message.split(" ", 2)
+def prt_message(message): # print incoming message
+    x = message.split(" ", 2) # split into three parts DELIVERY, <NAME>, <MESSAGE>
     print(f"From {x[1]}: {x[2]}")
+
 
 def get_input(sock):
     while True:
@@ -150,12 +115,11 @@ def get_input(sock):
             send_message(terminal_input, sock)
         elif "!who" in terminal_input:
             get_active_list(sock)
-            # graceful_exit(sock)
         elif "!quit" in terminal_input:
             graceful_exit(sock)
         else:
             print("say what now?")
-            get_input(sock)
+            
 
             
 
@@ -164,7 +128,7 @@ def print_list(data):
     plist[0] = plist[0].strip("LIST-OK ")
     print(f"There are {len(plist)} online:")
     for i in plist:
-                print(f"- {i} \n")
+        print(f"- {i} \n")
 
 def handle_response(sock):
     while True:
@@ -193,28 +157,13 @@ def handle_response(sock):
 
 
 def logged_in(sock): 
-
-    # terminal_input = input("") # get name and mess
-    #while not ("!quit" in terminal_input):
-    #    if terminal_input.startswith("@"):
-    #        send_message(terminal_input, sock)
-    #    elif "!who" in terminal_input:
-    #        get_active_list(sock)
-            # graceful_exit(sock)
-            # return # it craches after :((
-            
-    #    else:
-    #        print("say what now?")
-            # graceful_exit(sock)
-    #t = threading.Thread(target = get_input, args = (sock,))
-    #t.start()
-    #data = sock.recv(4096)
+    # check server and handle inputs simultaneously
     thr = threading.Thread(target = handle_response, args = (sock,), daemon=True)
     thr.start()
     get_input(sock)
 
     
-
+# has to be the same socket after login
 s = log_in()
 logged_in(s)
 
