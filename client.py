@@ -3,77 +3,80 @@ import socket
 import threading
 
 
-SERVER_HOST = '212.132.114.68'
-SERVER_PORT = 5378
-host_port = (SERVER_HOST, SERVER_PORT)
+#SERVER_HOST = '212.132.114.68'
+#SERVER_PORT = 5378
+HOST = '127.0.0.1'
+PORT = 5378
+host_port = (HOST, PORT)
 
 
 
-print('Welcome to Chat Client. Enter you login:')
+#print("Welcome to Chat Client. Enter your login:")
 # Please put your code in this file
 
 
 def graceful_exit(sock): # (not so) graceful exit
     print("goodbye")
     sock.close()
-    
     exit()
 
 
 
-def bad_login_response(response, name):
+def bad_login_response(response, name, sock):
     if 'BAD-RQST-BODY' in response:
         print(f"Cannot log in as {name}. That username contains disallowed characters.")
     elif 'BUSY' in response:
         print("Cannot log in. The server is full!")
+        graceful_exit(sock)
     elif 'IN-USE' in response:
         print(f'Cannot log in as {name}. That username is already in use.')
     else:
-        print(response)
+        print(f'something went wrong {response}')
 
 
 
 
 def log_in():
+    print("please")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(host_port)
     logged = False
     while (not logged): # while username is not set
-        username = input("") # get name 
+        username = input("Welcome to Chat Client. Enter your login:") # get name 
 
         if "!quit" in username:
             graceful_exit(sock)
 
         string_bytes = (f"HELLO-FROM {username} \n").encode("utf-8") # encode it
-        #print(string_bytes)
+        
         bytes_len = len(string_bytes) 
         num_bytes_to_send = bytes_len
-        try:
-            while num_bytes_to_send > 0: # send the name
-                num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
-                
-            data = sock.recv(4096) # get login response
         
-            if not data:
-                print("Socket is closed.")
-                graceful_exit(sock)
+        while num_bytes_to_send > 0: # send the name
+            num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
+            
+        data = sock.recv(4096) # get login response
+        print(data)
+        if not data:
+            print("Socket is closed.")
+            graceful_exit(sock)
+        else:
+            data = data.decode("utf-8")
+            # print(f"Read data from socket: {data}")
+            
+            if 'HELLO' in data:
+                x = data.split()
+                print(f"Successfully logged in as {x[1]}!")
+                return sock
+                
             else:
-                data = data.decode("utf-8")
-                # print(f"Read data from socket: {data}")
-                if 'HELLO' in data:
-                    x = data.split()
-                    print(f"Successfully logged in as {x[1]}!")
-                    return sock
-                    
-                else:
-                    sock.close() #buahahhahhaahah get reconnected
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.connect(host_port)
-                    bad_login_response(data, username)
-            
-        except OSError as msg:
-            print(f"{msg}")
-            
+                sock.close() #buahahhahhaahah get reconnected
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect(host_port)
+                bad_login_response(data, username, sock)
+        
+
+        
 
 
 def send_message(terminal_input, sock):
@@ -125,7 +128,7 @@ def print_list(data):
     plist[0] = plist[0].strip("LIST-OK ")
     print(f"There are {len(plist)} online:")
     for i in plist:
-        print(f"- {i} \n")
+        print(f"{i} \n")
 
 def handle_response(sock, leave):
     while not leave:
