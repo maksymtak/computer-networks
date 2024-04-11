@@ -16,6 +16,7 @@ print('Welcome to Chat Client. Enter you login:')
 def graceful_exit(sock): # (not so) graceful exit
     print("goodbye")
     sock.close()
+    
     exit()
 
 
@@ -23,7 +24,6 @@ def graceful_exit(sock): # (not so) graceful exit
 def bad_login_response(response, name):
     if 'BAD-RQST-BODY' in response:
         print(f"Cannot log in as {name}. That username contains disallowed characters.")
-
     elif 'BUSY' in response:
         print("Cannot log in. The server is full!")
     elif 'IN-USE' in response:
@@ -54,12 +54,9 @@ def log_in():
                 
             data = sock.recv(4096) # get login response
         
-
             if not data:
                 print("Socket is closed.")
                 graceful_exit(sock)
-                
-
             else:
                 data = data.decode("utf-8")
                 # print(f"Read data from socket: {data}")
@@ -96,11 +93,10 @@ def get_active_list(sock): # send user list request
     string_bytes = ("LIST\n").encode("utf-8") # encode it
     bytes_len = len(string_bytes) 
     num_bytes_to_send = bytes_len
-    try:
-        while num_bytes_to_send > 0: # send the request
-            num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
-    except OSError as msg:
-        print(f"{msg} losing it")
+
+    while num_bytes_to_send > 0: # send the request
+        num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
+
 
 
 def prt_message(message): # print incoming message
@@ -108,15 +104,16 @@ def prt_message(message): # print incoming message
     print(f"From {x[1]}: {x[2]}")
 
 
-def get_input(sock):
-    while True:
+def get_input(sock, leave):
+    while not leave:
         terminal_input = input("") # get name and mess
         if terminal_input.startswith("@"):
             send_message(terminal_input, sock)
         elif "!who" in terminal_input:
             get_active_list(sock)
         elif "!quit" in terminal_input:
-            graceful_exit(sock)
+            leave = True
+            return
         else:
             print("say what now?")
             
@@ -130,10 +127,11 @@ def print_list(data):
     for i in plist:
         print(f"- {i} \n")
 
-def handle_response(sock):
-    while True:
+def handle_response(sock, leave):
+    while not leave:
         data = sock.recv(4096)
         data = data.decode("utf-8")
+        #print(data)
         if data:
             if "DELIVERY" in data:
                 prt_message(data)
@@ -148,6 +146,7 @@ def handle_response(sock):
             elif "BAD-RQST-BODY" in data:
                 print("Error: Unknown issue in previous message body.")
             else:
+                print("whoops")
                 print(data)
         else:
             print("Socket closed")
@@ -156,16 +155,21 @@ def handle_response(sock):
 
 
 
-def logged_in(sock): 
+def logged_in(sock, leave): 
     # check server and handle inputs simultaneously
-    thr = threading.Thread(target = handle_response, args = (sock,), daemon=True)
+    thr = threading.Thread(target = handle_response, args = (sock,leave), daemon=True)
     thr.start()
-    get_input(sock)
+    get_input(sock, leave)
+    #thr.join()
+    
+
+
 
     
 # has to be the same socket after login
 s = log_in()
-logged_in(s)
+leave = False
+logged_in(s, leave)
 
     
 
