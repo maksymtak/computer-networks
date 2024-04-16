@@ -3,19 +3,15 @@ import socket
 import threading
 
 
-#SERVER_HOST = '212.132.114.68'
-#SERVER_PORT = 5378
-HOST = '212.132.114.68'
+SERVER_HOST = '212.132.114.68'
+SERVER_PORT = 5378
+HOST = '127.0.0.1'
 PORT = 5378
 host_port = (HOST, PORT)
 
 
 
-<<<<<<< Updated upstream
 #print("Welcome to Chat Client. Enter your login:")
-=======
-print('Welcome to Chat Client. Enter your login:')
->>>>>>> Stashed changes
 # Please put your code in this file
 
 
@@ -41,7 +37,6 @@ def bad_login_response(response, name, sock):
 
 
 def log_in():
-    print("please")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect(host_port)
     logged = False
@@ -51,7 +46,7 @@ def log_in():
         if "!quit" in username:
             graceful_exit(sock)
 
-        string_bytes = (f"HELLO-FROM {username} \n").encode("utf-8") # encode it
+        string_bytes = (f"HELLO-FROM {username}\n").encode("utf-8") # encode it
         
         bytes_len = len(string_bytes) 
         num_bytes_to_send = bytes_len
@@ -79,35 +74,6 @@ def log_in():
                 sock.connect(host_port)
                 bad_login_response(data, username, sock)
         
-
-<<<<<<< Updated upstream
-        
-=======
-            if not data:
-                print("Socket is closed.")
-                graceful_exit(sock)
-                
-
-            else:
-                data = data.decode("utf-8")
-                # print(f"Read data from socket: {data}")
-                if 'HELLO' in data:
-                    x = data.split()
-                    msg = (f"Successfully logged in as {x[1]}!")
-                    print(msg)
-                    return sock
-                    
-                else:
-                    sock.close() #buahahhahhaahah get reconnected
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                    sock.connect(host_port)
-                    bad_login_response(data, username)
-            
-        except OSError as msg:
-            print(f"{msg}")
-            
->>>>>>> Stashed changes
-
 
 def send_message(terminal_input, sock):
     terminal_input = terminal_input.strip("@") # get rid of the leading @ symbol
@@ -151,8 +117,6 @@ def get_input(sock, leave):
             print("say what now?")
             
 
-            
-
 def print_list(data):
     plist = data.split(",")
     plist[0] = plist[0].strip("LIST-OK ")
@@ -172,6 +136,7 @@ def handle_response(sock, leave):
             if "DELIVERY" in data:
                 prt_message(data)
             elif "LIST-OK" in data:
+                print(data)
                 print_list(data)
             elif "SEND-OK" in data:
                 print("The message was sent succesfully")
@@ -187,9 +152,6 @@ def handle_response(sock, leave):
         else:
             print("Socket closed")
         
-        
-
-
 
 def logged_in(sock, leave): 
     # check server and handle inputs simultaneously
@@ -198,18 +160,8 @@ def logged_in(sock, leave):
     get_input(sock, leave)
     #thr.join()
     
-
-
-
     
 # has to be the same socket after login
 s = log_in()
 leave = False
 logged_in(s, leave)
-
-    
-
-
-
-
-
