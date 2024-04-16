@@ -27,12 +27,12 @@ def send_message(con, message):
 
 def at_capacity(con):
     send_message(con, "BUSY")
+    con.close()
 
 def connect_clients():
     while True:
         con, add = sock.accept()
-        print(f'new connection [{con}] [{add}]')
-        if len(clients) > 16:
+        if len(clients) >= 16:
             thr = threading.Thread(target = at_capacity, args = (con,), daemon=True)
             thr.start()
         else:
@@ -55,18 +55,14 @@ def read_socket(con):
 
 
 def check_name_syntax(name): #ugly :(
-    forbidden = [',', ' '] # https://stackoverflow.com/questions/33174825/how-to-check-a-string-for-multiple-letters-in-python
-    for char in name:
-        if char in forbidden:
-            return False
+    if (' ' in name) or (',' in name):
+        return False
     return True
 
 def check_name(str, con): # True on good name and False on bad
     x = str.split(" ", 1)
     name = x[1]
     name = name.strip('\n') # delete the trailing newline
-    
-    print(f"{name}.")
 
     #chars = r"!@#$%^&$, " #https://stackoverflow.com/questions/5188792/how-to-check-a-string-for-specific-characters
     if check_name_syntax(name): #any(c in name for c in chars):
@@ -78,20 +74,21 @@ def check_name(str, con): # True on good name and False on bad
             send_message(con, "IN-USE")
     else:
         send_message(con, "BAD-RQST-BODY")
-    return False
+
 
 
 
 
 def log_in(con):
     data = read_socket(con)
-    if data:
+    while data:
         if "HELLO-FROM" in data:
-            return check_name(data, con)
+            if check_name(data, con):
+                return True
         else:
-            print("whats wrong?")
             send_message(con, "BAD-RQST-HDR")
-            
+        data = read_socket(con)
+
     return False
 
 def find_key(con): # this is bad, just sad :(
@@ -102,7 +99,12 @@ def find_key(con): # this is bad, just sad :(
  
 def send_DM(sender, message): # sender socket, <name> <msg>
     x = message.split(" ", 1)
-    if x[0] in clients:
+    x[1] = x[1].strip("\n")
+    #print(f"{x[0]}, {x[1]}.")
+    if len(x[1]) == 0:
+        send_message(sender, "BAD-RQST-BODY")
+        #print("closes/n")
+    elif x[0] in clients:
         send_message(clients[x[0]], f'DELIVERY {find_key(sender)} {x[1]}')
         send_message(sender, "SEND-OK")
     else:
@@ -142,11 +144,9 @@ def handle_client(con):
     while True:
         data = read_socket(con)
         if data:
-            print(data)
             handle_input(con, data)
         else:
             name = find_key(con)
-            print(f"goodbye {name}")
             con.close()
             del clients[name] # remove from client list
             return
