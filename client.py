@@ -11,7 +11,11 @@ host_port = (HOST, PORT)
 
 
 
+<<<<<<< Updated upstream
 #print("Welcome to Chat Client. Enter your login:")
+=======
+print('Welcome to Chat Client. Enter your login:')
+>>>>>>> Stashed changes
 # Please put your code in this file
 
 
@@ -76,7 +80,33 @@ def log_in():
                 bad_login_response(data, username, sock)
         
 
+<<<<<<< Updated upstream
         
+=======
+            if not data:
+                print("Socket is closed.")
+                graceful_exit(sock)
+                
+
+            else:
+                data = data.decode("utf-8")
+                # print(f"Read data from socket: {data}")
+                if 'HELLO' in data:
+                    x = data.split()
+                    msg = (f"Successfully logged in as {x[1]}!")
+                    print(msg)
+                    return sock
+                    
+                else:
+                    sock.close() #buahahhahhaahah get reconnected
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.connect(host_port)
+                    bad_login_response(data, username)
+            
+        except OSError as msg:
+            print(f"{msg}")
+            
+>>>>>>> Stashed changes
 
 
 def send_message(terminal_input, sock):
