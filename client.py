@@ -5,7 +5,7 @@ import threading
 
 #SERVER_HOST = '212.132.114.68'
 #SERVER_PORT = 5378
-HOST = '127.0.0.1'
+HOST = '212.132.114.68'
 PORT = 5378
 host_port = (HOST, PORT)
 
@@ -132,9 +132,12 @@ def print_list(data):
 
 def handle_response(sock, leave):
     while not leave:
-        data = sock.recv(4096)
-        data = data.decode("utf-8")
-        #print(data)
+        data = sock.recv(1)
+        data = d.decode("utf-8")
+        while not ("\n" in d):
+            d = sock.recv(1)
+            d = d.decode("utf-8")
+            data += d
         if data:
             if "DELIVERY" in data:
                 prt_message(data)
