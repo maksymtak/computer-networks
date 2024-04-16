@@ -12,10 +12,10 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.bind(host_port)
 sock.listen()
 #clients = []
-clients = {} #empty dictionary 
+clients = {} #empty dictionary takes key:value (or name:socket in this case) pairs
 
 
-def send_message(con, message):
+def send_message(con, message): #con (socket), mesage (string of wanted message)
     string_bytes = (f"{message}\n").encode("utf-8") # encode it
     
     bytes_len = len(string_bytes) 
@@ -29,7 +29,7 @@ def at_capacity(con):
     send_message(con, "BUSY")
     con.close()
 
-def connect_clients():
+def connect_clients(): #idle checking for new connections
     while True:
         con, add = sock.accept()
         if len(clients) >= 16:
@@ -40,7 +40,8 @@ def connect_clients():
             thr.start()
 
 
-def read_socket(con):
+def read_socket(con): #read a newline terminating data from socket, 
+                    #returns string of what was read or nothing if socket is closed
     data = con.recv(1)
     if not data:
         return data
@@ -54,13 +55,13 @@ def read_socket(con):
     return data
 
 
-def check_name_syntax(name): #ugly :(
-    if (' ' in name) or (',' in name):
+def check_name_syntax(name): #check if forbidden chars in the input name
+    if (' ' in name) or (',' in name): #return false on invalid name, true on valid ones
         return False
     return True
 
 def check_name(str, con): # True on good name and False on bad
-    x = str.split(" ", 1)
+    x = str.split(" ", 1) #split "hello-from" from <name>
     name = x[1]
     name = name.strip('\n') # delete the trailing newline
 
@@ -77,9 +78,10 @@ def check_name(str, con): # True on good name and False on bad
 
 
 
+#########
+#the problem is somewhere here?
 
-
-def log_in(con):
+def log_in(con): 
     data = read_socket(con)
     while data:
         if "HELLO-FROM" in data:
@@ -89,9 +91,9 @@ def log_in(con):
             send_message(con, "BAD-RQST-HDR")
         data = read_socket(con)
 
-    return False
+    return False # only if the socket closed client-side
 
-def find_key(con): # this is bad, just sad :(
+def find_key(con): # loop over dictionary to find name corresponding to given socket
     for name, soc in clients.items():
         if soc == con:
             return name
@@ -101,16 +103,17 @@ def send_DM(sender, message): # sender socket, <name> <msg>
     x = message.split(" ", 1)
     x[1] = x[1].strip("\n")
     #print(f"{x[0]}, {x[1]}.")
-    if len(x[1]) == 0:
+    if len(x[1]) == 0: #if there is no message inputted
         send_message(sender, "BAD-RQST-BODY")
-        #print("closes/n")
-    elif x[0] in clients:
-        send_message(clients[x[0]], f'DELIVERY {find_key(sender)} {x[1]}')
-        send_message(sender, "SEND-OK")
+    elif x[0] in clients: #if valid destination client
+        sender_name = find_key(sender)
+        if sender_name:
+            send_message(clients[x[0]], f'DELIVERY {sender_name} {x[1]}')
+            send_message(sender, "SEND-OK")
     else:
         send_message(sender, "BAD-DEST-USER")
         
-def send_list(con):
+def send_list(con): #make and send active user list 
     mess = "LIST-OK "
     for name, soc in clients.items():
         mess += f"{name},"
@@ -121,24 +124,24 @@ def send_list(con):
             
 
 
-def handle_input(con, data):
+def handle_input(con, data): #
     x = data.split(" ", 1)
     command = x[0]
 
-    
-    match command:
+    match command: #i thought there were more commands when thinking of switch
         case "SEND":
             send_DM(con, x[1])
         case "LIST\n":
             send_list(con)
         case _:
+            send_message(con, "BAD-RQST-HDR")
             print(f"{command}.")
 
 
 
 
-def handle_client(con):
-    if not log_in(con):
+def handle_client(con): # log in and loop reading from socket
+    if not log_in(con): # try to log in
         con.close()
         return
     while True:
