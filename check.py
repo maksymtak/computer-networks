@@ -10,7 +10,7 @@ import time
 CLIENT_FOLDER_PATH = './'
 ADDRESS = "127.0.0.1"
 PORT = 5378
-STUDENT_FILE_PATH = "../student/server_check/server.py"
+STUDENT_FILE_PATH = "../server_check/server.py"
 
 def generate_name():
     return ''.join(random.choice(string.ascii_letters) for _ in range(random.randint(8, 16)))
@@ -317,7 +317,7 @@ def send_message_before_login():
     message = generate_message()
     
     expected_output = "BAD-RQST-HDR"
-    _, output = execute_and_wait(f'echo "SEND {client_name_1} {message}" | nc 127.0.0.1 5378 -W 1')
+    _, output = execute_and_wait(f'echo "SEND {client_name_1} {message}" | nc 127.0.0.1 5378 -w 1')
     
     if not expected_output in output:
         raise TestException(f"your sever did not return BAD-RQST-HDR when trying to send messages before logging in. Answer was '{output}'")
@@ -447,3 +447,4 @@ if not execute_tests(test_cases=test_cases, case=case, tags_list=tags_list, disa
     exit(1)
 else:
     exit(0)
+

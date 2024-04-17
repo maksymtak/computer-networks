@@ -23,6 +23,8 @@ def funny_send(con, message):
     for char in string_bytes:
         con.send(char.encode("utf-8"))
     
+
+    
 def send_message(con, message): #con (socket), mesage (string of wanted message)
     string_bytes = (f"{message}\n").encode("utf-8") # encode it
     
@@ -64,7 +66,7 @@ def read_socket(con): #read a newline terminating data from socket,
 
 
 def check_name_syntax(name): #check if forbidden chars in the input name
-    if (' ' in name) or (',' in name): #return false on invalid name, true on valid ones
+    if (' ' in name) or (',' in name) or ('\\' in name): #return false on invalid name, true on valid ones
         return False
     return True
 
@@ -82,8 +84,8 @@ def check_name(str, con): # True on good name and False on bad
             send_message(con, "IN-USE")
     else:
         #send_message(con, "BAD-RQST-BODY")
-        send_message(con, "BAD-RQST-BODY")
-        print("BAD-RQST-BODY")
+        send_message(con, "BAD-RQST-HDR") # assholes, 
+        print("Error: Unknown issue in previous message body.") 
 
 
 
