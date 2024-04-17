@@ -9,12 +9,20 @@ import socket
 import threading
 host_port = (codSERVER_ADDRESS, SERVER_PORT)
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 sock.bind(host_port)
 sock.listen()
 #clients = []
 clients = {} #empty dictionary takes key:value (or name:socket in this case) pairs
 
-
+def funny_send(con, message):
+    string_bytes = (f"{message}\n") # encode it
+    
+    #bytes_len = len(string_bytes) 
+    #num_bytes_to_send = bytes_len
+    for char in string_bytes:
+        con.send(char.encode("utf-8"))
+    
 def send_message(con, message): #con (socket), mesage (string of wanted message)
     string_bytes = (f"{message}\n").encode("utf-8") # encode it
     
@@ -49,7 +57,7 @@ def read_socket(con): #read a newline terminating data from socket,
 
     while not ("\n" in data):
         d = con.recv(1)
-        d = d.decode("utf-8")
+        d = d.decode("utf-8") #wonder if decoding everything after would be faster
         data+=d
     
     return data
@@ -65,8 +73,7 @@ def check_name(str, con): # True on good name and False on bad
     name = x[1]
     name = name.strip('\n') # delete the trailing newline
 
-    #chars = r"!@#$%^&$, " #https://stackoverflow.com/questions/5188792/how-to-check-a-string-for-specific-characters
-    if check_name_syntax(name): #any(c in name for c in chars):
+    if check_name_syntax(name): #if no forbidden chars
         if name not in clients: #if the name is not taken yet
             clients[name]=con # add name:socket pair to clients 
             send_message(con, f"HELLO {name}")
@@ -74,7 +81,9 @@ def check_name(str, con): # True on good name and False on bad
         else:
             send_message(con, "IN-USE")
     else:
+        #send_message(con, "BAD-RQST-BODY")
         send_message(con, "BAD-RQST-BODY")
+        print("BAD-RQST-BODY")
 
 
 
@@ -88,9 +97,11 @@ def log_in(con):
             if check_name(data, con):
                 return True
         else:
+            #send_message(con, "BAD-RQST-HDR")
             send_message(con, "BAD-RQST-HDR")
+            print("BAD-RQST-HDR")
+            
         data = read_socket(con)
-
     return False # only if the socket closed client-side
 
 def find_key(con): # loop over dictionary to find name corresponding to given socket
@@ -157,8 +168,3 @@ def handle_client(con): # log in and loop reading from socket
 
 connect_clients()
     
-
-
-
-# Assume the connect_clients function accepts incoming connections
-# and returns all of them as a list.
