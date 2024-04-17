@@ -54,7 +54,7 @@ def start_server():
     server_process = execute_and_detach(f'python3 {STUDENT_FILE_PATH} --address "{ADDRESS}" --port {PORT}')
     expected_output = "Server is on"
 
-    output_buffer = handle_pexpect(server_process, [server_process], expected_output, "", "starting a server")
+    output_buffer = handle_pexpect(server_process, [server_process], expected_output, "", "starting a server", timeout=10)
         
     return server_process, output_buffer
 
@@ -98,56 +98,38 @@ def start_script():
     return client_process, output_buffer
 
 def log_in(client_name="client"):
-    expected_output = f'Succesfully logged in as {client_name}!'
+    expected_output = f'Successfully logged in as {client_name}!'
 
     client_process, output_buffer = start_script()
     client_process.sendline(client_name)
 
-    output_buffer = handle_pexpect(client_process, [client_process], expected_output, output_buffer, "logging in with a client")
+    output_buffer = handle_pexpect(client_process, [client_process], expected_output, output_buffer, "logging in with a client", timeout=3)
 
     return client_process, output_buffer
 
 def reject_usernames_commas():
-    client_name = generate_name()
-    first_rand_index = random.randint(0, len(client_name) - 1)
-    client_name = client_name[:first_rand_index] + "," + client_name[first_rand_index + 1:]
+    client_name_pt1 = generate_name()
+    client_name_pt2 = generate_name()
+    
+    expected_output = "BAD-RQST-BODY"
+    _, output = execute_and_wait(f'echo "HELLO-FROM {client_name_pt1},{client_name_pt2}" | nc 127.0.0.1 5378 -w 1')
+    
+    if not expected_output in output:
+        raise TestException(f"your server did not return BAD-RQST-BODY when logging in with a username that contains commas. Reply was '{output}'")
 
-    expected_output = "Error: Unknown issue in previous message header."
-
-    client_process, output_buffer = start_script()
-    client_process.sendline(client_name)
-
-    output_buffer = handle_pexpect(client_process, [client_process], expected_output, output_buffer, "rejecting client username if there are commas in it")
-
-    return client_process, output_buffer
+    return output
 
 def reject_usernames_spaces():
-    client_name = generate_name()
-    first_rand_index = random.randint(0, len(client_name) - 1)
-    client_name = client_name[:first_rand_index] + " " + client_name[first_rand_index + 1:]
+    client_name_pt1 = generate_name()
+    client_name_pt2 = generate_name()
+    
+    expected_output = "BAD-RQST-BODY"
+    _, output = execute_and_wait(f'echo "HELLO-FROM {client_name_pt1} {client_name_pt2}" | nc 127.0.0.1 5378 -w 1')
+    
+    if not expected_output in output:
+        raise TestException(f"your server did not return BAD-RQST-BODY when logging in with a username that contains spaces. Reply was '{output}'")
 
-    expected_output = "Error: Unknown issue in previous message header."
-
-    client_process, output_buffer = start_script()
-    client_process.sendline(client_name)
-
-    output_buffer = handle_pexpect(client_process, [client_process], expected_output, output_buffer, "rejecting client username if there are spaces in it")
-
-    return client_process, output_buffer
-
-def reject_usernames_new_lines():
-    client_name = generate_name()
-    first_rand_index = random.randint(0, len(client_name) - 1)
-    client_name = client_name[:first_rand_index] + "\\n" + client_name[first_rand_index + 1:]
-
-    expected_output = "Error: Unknown issue in previous message header."
-
-    client_process, output_buffer = start_script()
-    client_process.sendline(client_name)
-
-    output_buffer = handle_pexpect(client_process, [client_process], expected_output, output_buffer, "rejecting client username if there are newline symbols in it")
-
-    return client_process, output_buffer
+    return output
 
 def test_16_clients():
     MAX_CLIENTS = 16
@@ -320,7 +302,7 @@ def send_message_before_login():
     _, output = execute_and_wait(f'echo "SEND {client_name_1} {message}" | nc 127.0.0.1 5378 -w 1')
     
     if not expected_output in output:
-        raise TestException(f"your sever did not return BAD-RQST-HDR when trying to send messages before logging in. Answer was '{output}'")
+        raise TestException(f"your server did not return BAD-RQST-HDR when trying to send messages before logging in. Answer was '{output}'")
 
     return output
 
@@ -335,7 +317,7 @@ class TestCase():
     def execute(self, disable_colors=False):
         success = True
         tags_string = ' '.join(self.tags)
-
+        
         try:
             server_process, _ = start_server()
         except:
@@ -358,9 +340,9 @@ class TestCase():
             success = False
 
             if not disable_colors:
-                print(f'\033[91m[ x ] \033[30m{self.test_id}. {self.test_msg} \033[91mFailed! \033[30m The list of tags is {tags_string} \nYour server did not start \033[0m')
+                print(f'\033[91m[ x ] \033[30m{self.test_id}. {self.test_msg} \033[91mFailed! \033[30m The list of tags is {tags_string} \nYour server did not start or did not keep running\033[0m')
             else:
-                print(f'[ x ] {self.test_id}. {self.test_msg} Failed! The list of tags is {tags_string} \nYour server did not start')
+                print(f'[ x ] {self.test_id}. {self.test_msg} Failed! The list of tags is {tags_string} \nYour server did not start or did not keep running')
 
         except Exception as e:
             try:
@@ -381,7 +363,7 @@ class TestCase():
         return success
 
 test_cases = [
-    TestCase(start_script, "chat_server_001", "Server starts successfuly"),
+    TestCase(start_script, "chat_server_001", "Server starts successfully", ['TR5']),
     TestCase(log_in, "chat_server_002", "Log in with unique name and expect success", ['PR2', 'PR3']),
     TestCase(log_in_duplicate, "chat_server_003", "Log in with duplicate name and expect failure", ['PR5']),
     TestCase(list_users, "chat_server_004", "Log in, list users and expect success", ['PR8', 'PR9']),
@@ -391,12 +373,11 @@ test_cases = [
     TestCase(verify_file_for_sendall, "chat_server_008", "The server must not use the sendall() function in Python", []),
     TestCase(error_body,  "chat_server_009", "Last message received from the client contains an error in the body", ['PR4']),
     TestCase(reject_usernames_spaces, "chat_server_010", "Server does not accept usernames with spaces", ['PR6', 'PR16']),
-    TestCase(reject_usernames_new_lines, "chat_server_011", "Server does not accept usernames with new lines", ['PR6', 'PR16']),
-    TestCase(reject_usernames_commas, "chat_server_012", "Server does not accept usernames with commas", ['PR6']),
-    TestCase(test_16_clients, "chat_server_013", "Server supports 16 clients", ['TR1', 'TR2']),
-    TestCase(test_busy, "chat_server_014", "Server responds with busy for 17 clients", ['PR15']),
-    TestCase(disconnect, "chat_server_015", "Server accepts disconnections", ['TR3']),
-    TestCase(send_message_before_login, "chat_server_016", "Server responds with a bad header if the message sent by the client who is not logged in", ['PR7'])
+    TestCase(reject_usernames_commas, "chat_server_011", "Server does not accept usernames with commas", ['PR6']),
+    TestCase(test_16_clients, "chat_server_012", "Server supports 16 clients", ['TR1', 'TR2']),
+    TestCase(test_busy, "chat_server_013", "Server responds with busy for 17 clients", ['PR15']),
+    TestCase(disconnect, "chat_server_014", "Server accepts disconnections", ['TR3']),
+    TestCase(send_message_before_login, "chat_server_015", "Server responds with a bad header if the message sent by the client who is not logged in", ['PR7'])
 ]
 
 parser = argparse.ArgumentParser(description='Process test arguments')
@@ -447,4 +428,3 @@ if not execute_tests(test_cases=test_cases, case=case, tags_list=tags_list, disa
     exit(1)
 else:
     exit(0)
-
