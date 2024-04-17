@@ -17,6 +17,7 @@ host_port = (HOST, PORT)
 
 def graceful_exit(sock): # (not so) graceful exit
     print("goodbye")
+    
     sock.close()
     exit()
 
@@ -127,7 +128,7 @@ def print_list(data):
 def handle_response(sock, leave):
     while not leave:
         data = sock.recv(1)
-        data = d.decode("utf-8")
+        data = data.decode("utf-8")
         while not ("\n" in d):
             d = sock.recv(1)
             d = d.decode("utf-8")
