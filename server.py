@@ -1,14 +1,19 @@
+import sys
+
 codSERVER_ADDRESS = '127.0.0.1'
 SERVER_PORT = 5378
-
+#print(sys.argv)
+#codSERVER_ADDRESS = sys.argv[2]
+#SERVER_PORT = sys.argv[4]
 
 print('Server is on')
 # Please put your code in this file
 
 import socket
 import threading
-host_port = (codSERVER_ADDRESS, SERVER_PORT)
-sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host_port = (codSERVER_ADDRESS, int(SERVER_PORT))
+sock = socket.socket()
+#sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 sock.bind(host_port)
 sock.listen()
@@ -49,6 +54,7 @@ def connect_clients(): #idle checking for new connections
         else:
             thr = threading.Thread(target = handle_client, args = (con,), daemon=True)
             thr.start()
+            
 
 
 def read_socket(con): #read a newline terminating data from socket, 
@@ -68,43 +74,55 @@ def read_socket(con): #read a newline terminating data from socket,
 
 def check_name_syntax(name): #check if forbidden chars in the input name
     if (' ' in name) or (',' in name) or ('\\' in name): #return false on invalid name, true on valid ones
+        print("bad message")
         return False
-    return True
+    else:
+        return True
 
 def check_name(str, con): # True on good name and False on bad
     x = str.split(" ", 1) #split "hello-from" from <name>
+    
     name = x[1]
     name = name.strip('\n') # delete the trailing newline
-
+    print(f'name = {name}')
     if check_name_syntax(name): #if no forbidden chars
         if name not in clients: #if the name is not taken yet
-            clients[name]=con # add name:socket pair to clients 
-            send_message(con, f"HELLO {name}")
+            shake(name, con)
             return True
         else:
             send_message(con, "IN-USE")
     else:
-        send_message(con, "BAD-RQST-BODY")
+        
         #send_message(con, "BAD-RQST-HDR")
         print("Error: Unknown issue in previous message body.") 
+    return False
 
 
-
+def shake(name, con):
+    print("unfortunate demise")
+    clients[name]=con # add name:socket pair to clients 
+    send_message(con, f"HELLO {name}")
+    
 #########
 #the problem is somewhere here?
 
 def log_in(con): 
     data = read_socket(con)
-    while data:
+    if data:
         if "HELLO-FROM" in data:
             if check_name(data, con):
                 return True
+            else:
+                send_message(con, "BAD-RQST-BODY")
+                #send_message(con, "BAD-RQST-HDR")
         else:
-            #send_message(con, "BAD-RQST-HDR")
             send_message(con, "BAD-RQST-HDR")
-            print("BAD-RQST-HDR")
             
-        data = read_socket(con)
+            #print("BAD-RQST-HDR")
+        
+        #return False
+    print("not cool dude")
+    con.close()
     return False # only if the socket closed client-side
 
 def find_key(con): # loop over dictionary to find name corresponding to given socket
@@ -134,9 +152,7 @@ def send_list(con): #make and send active user list
 
     mess = mess[:-1] # remove last comma
     send_message(con, mess)
-
-            
-
+    
 
 def handle_input(con, data): #
     x = data.split(" ", 1)
@@ -151,12 +167,15 @@ def handle_input(con, data): #
             send_message(con, "BAD-RQST-HDR")
             print(f"{command}.")
 
-
+def close_it(con):
+    con.close()
 
 
 def handle_client(con): # log in and loop reading from socket
+    print("hi")
     if not log_in(con): # try to log in
-        con.close()
+        print("idk what is on")
+        #close_it(con)
         return
     while True:
         data = read_socket(con)
