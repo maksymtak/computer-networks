@@ -12,10 +12,10 @@ divisor = '10001000000100011'
 ack_char = '11111111' 
 headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR"]
 character = "u"
-seq_bit_len = 7
+seq_bit_len = 6
 # crc_len = 16
 wait_time_ack = 0.05
-frame_len = 32
+# frame_len = 32
 name_self = ''
 import random
 import math
@@ -38,11 +38,11 @@ def bad_login_response(response, name, sock):
     else:
         print(f'something went wrong {response}')
 
-def make_name(username): # ret req nr after name
-    encoded = username
-    print(crc_make(get_binary(username)))
-    encoded += get_char(crc_make(get_binary(username)))
-    return encoded
+# def make_name(username): # ret req nr after name
+#     encoded = username
+#     print(crc_make(get_binary(username)))
+#     encoded += int(crc_make(get_binary(username)), 2)
+#     return encoded
 
 def log_in():
     global sock
@@ -54,12 +54,13 @@ def log_in():
         if "!quit" in username:
             graceful_exit(sock)
         
-        crcd_username = make_name(username)
+        crcd_username = crc_make(username)#.strip(" /\!@#$%^") 
 
-        string_bytes = (f"HELLO-FROM {crcd_username}\n")
-        print(string_bytes)
+        string_bytes = (f"HELLO-FROM {crcd_username}\n").encode("utf-8")
+        #print(string_bytes)
         send_string(string_bytes)
-        data = sock.recv(4096) # get login response
+        print("got through")
+        data, addr = sock.recvfrom(1024) # get login response
         print(data)
         if not data:
             print("Socket is closed.")
@@ -69,15 +70,15 @@ def log_in():
             # print(f"Read data from socket: {data}")
             
             if 'HELLO' in data:
-                x = data.split()
-                x[1] = check_crc(x[1])
-                print(f"Succesfully logged in as {x[1]}!")
+                #x = data.split()
+                #x[1] = check_crc(x[1])
+                print(f"Succesfully logged in as {username}!")
                 return sock
                 
             else:
                 sock.close() #buahahhahhaahah get reconnected
                 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                sock.bind(host_port)
+                #sock.bind(host_port)
                 bad_login_response(data, username, sock)
         
 
@@ -85,10 +86,10 @@ def send_message(terminal_input):
     
     terminal_input = terminal_input.strip("@") # get rid of the leading @ symbol
     x = terminal_input.split(" ", 1)
-    x[0] = make_name(x[0])
+    x[0] = crc_make(x[0])
     string_bytes = f"{x[1]}"
     string_bytes = make_message(x[0], string_bytes, '0', bin(get_chat(x[0]).seq_self))
-    string_bytes = (f"SEND {x[0]} {string_bytes}\n") 
+    string_bytes = (f"SEND {x[0]} {string_bytes} \n") 
     # print(string_bytes)
     send_string(string_bytes)
 
@@ -111,7 +112,7 @@ def send_message(terminal_input):
 
 
 def get_active_list(): # send user list request
-    send_string("LIST\n")
+    send_string("LIST\n").encode("utf-8") 
     # string_bytes = ("LIST\n").encode("utf-8") # encode it
     # bytes_len = len(string_bytes) 
     # num_bytes_to_send = bytes_len
@@ -120,14 +121,15 @@ def get_active_list(): # send user list request
     #     num_bytes_to_send -= sock.send(string_bytes[bytes_len-num_bytes_to_send:])
 
 
-def send_string(string_):
-    print(string_)
-    string_ = string_.encode("utf-8")    
-    bytes_len = len(string_) 
-    num_bytes_to_send = bytes_len
-    print(string_)
-    while num_bytes_to_send > 0: # send the request
-        num_bytes_to_send -= sock.sendto(string_[bytes_len-num_bytes_to_send:], server_)
+def send_string(data):
+    print(data)
+    # data = data.encode("utf-8")    
+    sock.sendto(data, server_)
+    # bytes_len = len(data) 
+    # num_bytes_to_send = bytes_len
+    # print(data)
+    # while num_bytes_to_send > 0: # send the request
+    #     num_bytes_to_send -= sock.sendto(data[bytes_len-num_bytes_to_send:], server_)
 
 def prt_message(message, name): # print incoming message
     #x = message.split(" ", 2) # split into three parts DELIVERY, <NAME>, <MESSAGE>
@@ -319,15 +321,44 @@ def crc_main(argument):
     #print(argument[-crc_len:])
     return argument[-crc_len:] # return only crc
 
+def get_int_string_of_bits(argument):
+    ret = int(argument, 2)
+    ret = str(ret)
+    return ret
+    # if len(ret) < 3: # could be better and should make this into a func
+    #     zeroes = ["0"] * (3 - len(ret))
+    #     zeroes.append(ret)
+    #     #print(zeroes)
+    #     ret = ''.join(zeroes)
+    # return ret
+
+
+def add_leading_zeroes(data, amount):
+    if len(data) < amount: # could be better and should make this into a func
+        zeroes = ["0"] * (amount - len(data))
+        zeroes.append(data)
+        #print(zeroes)
+        data = ''.join(zeroes)
+    return data
+
+
 def crc_make(argument):
-    argument = shift_left(argument, len(divisor)-1)
-    return crc_main(argument)
+    working = shift_left(get_binary(argument), len(divisor)-1)
+    #argument = get_char(argument)
+    working = crc_main(working)
+    print(working)
+    argument += add_leading_zeroes(get_int_string_of_bits(working), 5)
+    return argument
+
 
 def check_crc(argument): # also remove it from the string
-    crc = crc_main(argument)
-    argument = argument[:-len(divisor) + 1]
+    data = get_binary(argument[:-5])
+    crc = bin(int(argument[-5:]))[2:]
+    crc = add_leading_zeroes(crc, 16)
+    crc = crc_main(data + crc)
+
     if int(crc,2) == 0:
-        return argument
+        return argument[:-5]
     return None
 
 
@@ -354,11 +385,6 @@ def int_to_bits(number, bit_len): # does not cut too big a number
         
     return bits
    
-   
-
-
-
-
 def get_binary(string):
     bits = ""
     for character in string:
@@ -404,8 +430,8 @@ def make_message(name, data, ack_fl, seq_nr):
         frame += '1'
 
     frame += get_binary(data) # letter in bin
-    frame += crc_make(frame) # add crc of the beginning and message
-    frame = get_char(frame)
+    frame += crc_make(get_char(frame)) # add crc of the beginning and message
+    #frame = get_char(frame)
 
     return frame
 
@@ -416,12 +442,12 @@ def send_ack(name, friend_seq):
 def decode_message(name, data):
     data = data[:-1] # remove \n (which is just one char) from the string 
     #could be dangerous on edgecases
-    data = get_binary(data)
-    if len(data) <= seq_bit_len: # something is wrong with the message
+    #data = get_binary(data)
+    if len(get_binary(data)) <= seq_bit_len: # something is wrong with the message
         return
     data = check_crc(data) # check and remove crc
     if data != None: # if crc showed problems with mess
-        name = get_binary(name)
+        #name = get_binary(name)
         name = check_crc(name)
         if name == None: # if crc showed problems with name
             return 
