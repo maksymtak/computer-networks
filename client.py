@@ -1,5 +1,5 @@
 SERVER_HOST = '212.132.114.68'
-SERVER_PORT = 5378
+SERVER_PORT = 5382
 HOST = '127.0.0.1'
 PORT = 5378
 host_port = (HOST, PORT)
@@ -8,12 +8,12 @@ how_many_flags = 2
 import time
 import threading
 # print('Welcome to Chat Client. Enter you login:')
-divisor = '1000100000010001'
+divisor = '10001000000100011'
 ack_char = '11111111' 
 headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR"]
 character = "u"
 seq_bit_len = 7
-crc_len = 16
+# crc_len = 16
 wait_time_ack = 0.05
 frame_len = 32
 name_self = ''
@@ -22,15 +22,10 @@ import math
 import socket
 
 
-
-
-
 def graceful_exit(sock): # (not so) graceful exit
     print("goodbye")
     sock.close()
     exit()
-
-
 
 def bad_login_response(response, name, sock):
     if 'BAD-RQST-BODY' in response:
@@ -43,23 +38,15 @@ def bad_login_response(response, name, sock):
     else:
         print(f'something went wrong {response}')
 
-
-
 def make_name(username): # ret req nr after name
     encoded = username
-    encoded += get_char(crc_make(get_binary(encoded)))
+    print(crc_make(get_binary(username)))
+    encoded += get_char(crc_make(get_binary(username)))
     return encoded
-
-    for char in username:
-        frame = ''
-        ones = ["1"] * how_many_flags
-        frame += int_to_bits(seq_nr, seq_bit_len)
-    
 
 def log_in():
     global sock
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.bind(host_port)
     logged = False
     while (not logged): # while username is not set
         username = input("Welcome to Chat Client. Enter your login:") # get name 
@@ -70,6 +57,7 @@ def log_in():
         crcd_username = make_name(username)
 
         string_bytes = (f"HELLO-FROM {crcd_username}\n")
+        print(string_bytes)
         send_string(string_bytes)
         data = sock.recv(4096) # get login response
         print(data)
@@ -137,7 +125,7 @@ def send_string(string_):
     string_ = string_.encode("utf-8")    
     bytes_len = len(string_) 
     num_bytes_to_send = bytes_len
-
+    print(string_)
     while num_bytes_to_send > 0: # send the request
         num_bytes_to_send -= sock.sendto(string_[bytes_len-num_bytes_to_send:], server_)
 
@@ -197,7 +185,7 @@ def print_list(data):
 def handle_response(sock, leave):
     while not leave:
         
-        data = sock.recv(1)
+        data = sock.recvfrom(1)
         data = data.decode("utf-8")
 
         # tail_recv = math.floor(crc_len / 8)
@@ -329,7 +317,7 @@ def crc_main(argument):
         loop_count += 1
     #crc_len = crc_len * -1
     #print(argument[-crc_len:])
-    return argument[-crc_len:] 
+    return argument[-crc_len:] # return only crc
 
 def crc_make(argument):
     argument = shift_left(argument, len(divisor)-1)
@@ -337,10 +325,11 @@ def crc_make(argument):
 
 def check_crc(argument): # also remove it from the string
     crc = crc_main(argument)
-    argument = argument[-len(divisor):]
+    argument = argument[:-len(divisor) + 1]
     if int(crc,2) == 0:
         return argument
     return None
+
 
 #tested
 def icnrease_seqence_return_int(seq, bit_len): 
@@ -369,19 +358,29 @@ def int_to_bits(number, bit_len): # does not cut too big a number
 
 
 
-#now works with strings and not just single characters
+
 def get_binary(string):
     bits = ""
     for character in string:
         character = ord(character)
         character = bin(character)
-        character = character.replace('b', '')
+        character = character[2:]
+        if len(character) < 8:
+            zeroes = ["0"] * (8 - len(character))
+            zeroes.append(character)
+            #print(zeroes)
+            character = ''.join(zeroes)
+        # character = character.replace('b', '')
+        #print(character)
         bits += character
+    print(bits)
     return bits
 
-#now works with strings and not just single characters
+
 def get_char(bits):
     string = ""
+    # print(len(bits))
+    # print((math.floor(len(bits)/8)))
     for bytes_index in range(math.floor(len(bits)/8)):
         byte = bits[bytes_index*8:(bytes_index+1)*8]
         character = int(byte, 2)
