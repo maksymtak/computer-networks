@@ -56,7 +56,7 @@ def log_in():
         
         crcd_username = crc_make(username)#.strip(" /\!@#$%^") 
 
-        string_bytes = (f"HELLO-FROM {crcd_username}\n").encode("utf-8")
+        string_bytes = (f'HELLO-FROM {crcd_username}\n').encode("utf-8")
         #print(string_bytes)
         send_string(string_bytes)
         print("got through")
@@ -70,9 +70,9 @@ def log_in():
             # print(f"Read data from socket: {data}")
             
             if 'HELLO' in data:
-                #x = data.split()
-                #x[1] = check_crc(x[1])
-                print(f"Succesfully logged in as {username}!")
+                x = data.split()
+                x[1] = check_crc(x[1])
+                print(f"Succesfully logged in as {x[1]}!")
                 return sock
                 
             else:
@@ -322,8 +322,12 @@ def crc_main(argument):
     return argument[-crc_len:] # return only crc
 
 def get_int_string_of_bits(argument):
-    ret = int(argument, 2)
-    ret = str(ret)
+    argument = int(argument, 2)
+    argument = str(argument)
+    chars = "abcdefghij"
+    ret = ''
+    for char in argument:
+        ret += chars[int(char)]
     return ret
     # if len(ret) < 3: # could be better and should make this into a func
     #     zeroes = ["0"] * (3 - len(ret))
@@ -332,10 +336,15 @@ def get_int_string_of_bits(argument):
     #     ret = ''.join(zeroes)
     # return ret
 
+def get_int_of_letters(arg):
+    ret = ''
+    for char in arg:
+        ret += str(ord(char) - 97)
+    return int(ret)
 
-def add_leading_zeroes(data, amount):
+def add_leading_zeroes(data, amount, leading_char):
     if len(data) < amount: # could be better and should make this into a func
-        zeroes = ["0"] * (amount - len(data))
+        zeroes = [leading_char] * (amount - len(data))
         zeroes.append(data)
         #print(zeroes)
         data = ''.join(zeroes)
@@ -347,14 +356,14 @@ def crc_make(argument):
     #argument = get_char(argument)
     working = crc_main(working)
     print(working)
-    argument += add_leading_zeroes(get_int_string_of_bits(working), 5)
+    argument += add_leading_zeroes(get_int_string_of_bits(working), 5, 'a')
     return argument
 
 
 def check_crc(argument): # also remove it from the string
     data = get_binary(argument[:-5])
-    crc = bin(int(argument[-5:]))[2:]
-    crc = add_leading_zeroes(crc, 16)
+    crc = bin(get_int_of_letters(argument[-5:]))[2:]
+    crc = add_leading_zeroes(crc, 16, '0')
     crc = crc_main(data + crc)
 
     if int(crc,2) == 0:
