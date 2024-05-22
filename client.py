@@ -93,10 +93,16 @@ def send_message(terminal_input):
         friend = Chat(x[0])
         chats.append(friend)
     string_bytes = make_message(x[0], string_bytes, '0', get_chat(x[0]).seq_self)
-    string_bytes = (f"SEND {x[0]} {string_bytes} \n").encode("utf-8")
+    string_bytes = (f"SEND {x[0]} {string_bytes}\n").encode("utf-8")
     friend.add_pending(string_bytes)
     # print(string_bytes)
     send_string(string_bytes)
+
+
+def send_ack(name, friend_seq):
+    frame = make_message(name, get_char(ack_char), '1', friend_seq)
+    send_string((f"SEND {name} {frame}\n").encode("utf-8"))
+
 
 # do not use
 # def whole_send(terminal_input, frame=None, person=None):
@@ -285,7 +291,7 @@ def get_chat(in_name, seq_nr = -1):
     
     person = Chat(in_name, seq_nr)
     chats.append(person)
-    return None
+    return person
 
 
 def find_chat_seq(in_name):
@@ -441,8 +447,8 @@ def make_message(name, data, ack_fl, seq_nr):
     frame += bin(seq_nr)[2:] #seq nr
 
     frame += ack_fl # ack flag
-
-    if friend.syn: # synchronize flag
+    
+    if friend.syn or ack_fl == '1': # synchronize flag
         frame += '0' # maybe should reverse
     else:
         frame += '1'
@@ -454,12 +460,9 @@ def make_message(name, data, ack_fl, seq_nr):
 
     return frame
 
-def send_ack(name, friend_seq):
-    make_message(name, ack_char, '1', friend_seq)
-
 
 def decode_message(name, data):
-    data = data[:-2] # remove \n and space
+    data = data[:-1] # remove \n and space
     #could be dangerous on edgecases
     #data = get_binary(data)
     # if len(get_binary(data)) <= seq_bit_len: # something is wrong with the message
@@ -475,29 +478,31 @@ def decode_message(name, data):
         friend = get_chat(name) # makes friend if not there yet
         print(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])
         seq_of_message = get_int_of_letters(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])# take the seq of the mess 
-        flags = seq_of_message[-2:]
-        seq_of_message = seq_of_message[:-2]
+        
 
         print(seq_of_message)
         seq_of_message = int_to_bits(seq_of_message)
+        flags = seq_of_message[-2:]
+        seq_of_message = seq_of_message[:-2]
         print(seq_of_message)
         if friend == None: # not in dict so make new
             person = Chat(name)
             chats.append(person)
         #data = data[0:-len(divisor)+1]
         if flags[0] == "1": # ack flag
+            print("removed")
             friend.remove_pending(int(seq_of_message, 2))
             friend.seq_self = icnrease_seqence_return_int(friend.seq_self)
             return
         else:
             if flags[1] == "1": # syn flag
-                friend.seq_friend = seq_of_message
+                friend.seq_friend = int(seq_of_message,2)
                 # person = Chat(name, seq_of_message)
                 # chats.append(person)
             if int(seq_of_message,2) == friend.seq_friend:
-                send_ack(name, seq_of_message)
+                send_ack(name, int(seq_of_message,2))
                 friend.increase()
-                data = data[len(seq_of_message):] # remove seq and flags for printing
+                data = data[len(str(pow(2, seq_bit_len + how_many_flags))):] # remove seq and flags for printing
                 print(f"From {name}: {data}")
             # else:
             #     send_ack(name, friend.seq_friend) # send expected sequence number
@@ -570,10 +575,10 @@ class Chat:
         #self.start_index = 0
 
     def increase(self):
-        if self.seq >= pow(2, seq_bit_len) - 1:
-            self.seq = 0
+        if self.seq_friend >= pow(2, seq_bit_len) - 1:
+            self.seq_friend = 0
         else:
-            self.seq += 1
+            self.seq_friend += 1
 
     # def expand_message(self, index_multiplier): # cheeky and may not work
     #    if len(self.ordered_message) < (pow(2, seq_bit_len) - 1) * index_multiplier:
