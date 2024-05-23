@@ -10,11 +10,11 @@ import threading
 # print('Welcome to Chat Client. Enter you login:')
 divisor = '10001000000100011'
 ack_char = '11111111' 
-headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR"]
+headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR", "SET-OK"]
 character = "u"
 seq_bit_len = 6
 # crc_len = 16
-wait_time_ack = 0.05
+wait_time_ack = 5
 # frame_len = 32
 name_self = ''
 import random
@@ -86,14 +86,13 @@ def send_message(terminal_input):
     
     terminal_input = terminal_input.strip("@") # get rid of the leading @ symbol
     x = terminal_input.split(" ", 1)
-    x[0] = crc_make(x[0])
     string_bytes = f"{x[1]}"
     friend = get_chat(x[0])
-    if friend == None:
-        friend = Chat(x[0])
-        chats.append(friend)
-    string_bytes = make_message(x[0], string_bytes, '0', get_chat(x[0]).seq_self)
-    string_bytes = (f"SEND {x[0]} {string_bytes}\n").encode("utf-8")
+    # if friend == None:
+    #     friend = Chat(x[0])
+    #     chats.append(friend)
+    string_bytes = make_message(x[0], string_bytes, '0', friend.seq_self)
+    string_bytes = (f"SEND {crc_make(x[0])} {string_bytes}\n").encode("utf-8")
     friend.add_pending(string_bytes)
     # print(string_bytes)
     send_string(string_bytes)
@@ -101,7 +100,7 @@ def send_message(terminal_input):
 
 def send_ack(name, friend_seq):
     frame = make_message(name, get_char(ack_char), '1', friend_seq)
-    send_string((f"SEND {name} {frame}\n").encode("utf-8"))
+    send_string((f"SEND {crc_make(name)} {frame}\n").encode("utf-8"))
 
 
 # do not use
@@ -149,7 +148,7 @@ def prt_message(message, name): # print incoming message
 
 def set_params(terminal_input):
     split_input = terminal_input.split(" ", 2)
-    string_bytes = (f"SET {split_input[1].upper()} {split_input[2]}\n") 
+    string_bytes = (f"SET {split_input[1].upper()} {split_input[2]}\n").encode("utf-8")
     send_string(string_bytes)
 
 
@@ -261,8 +260,8 @@ def logged_in(sock, leave):
     # check server and handle inputs simultaneously
     thr = threading.Thread(target = handle_response, args = (sock,leave), daemon=True)
     thr.start()
-    # thr = threading.Thread(target = retransmittions, args = (leave,), daemon=True)
-    # thr.start()
+    thr = threading.Thread(target = retransmittions, args = (leave,), daemon=True)
+    thr.start()
     get_input(sock, leave)
     #thr.join()
     
@@ -286,7 +285,9 @@ def retransmittions(leave): #yucky
 
 def get_chat(in_name, seq_nr = -1):
     for i in chats:
+        print(f'saved name: {i.name}, given name: {in_name}.')
         if i.name == in_name:
+            print("gottem good")
             return i
     
     person = Chat(in_name, seq_nr)
@@ -369,13 +370,13 @@ def crc_make(argument):
     working = shift_left(get_binary(argument), len(divisor)-1)
     #argument = get_char(argument)
     working = crc_main(working)
-    print(working)
+    #print(working)
     argument += add_leading_zeroes(get_int_string_of_bits(working), 5, 'a')
     return argument
 
 
 def check_crc(argument): # also remove it from the string
-    print(f'{argument}.\n{argument[:-5]} {argument[-5:]}')
+    #print(f'{argument}.\n{argument[:-5]} {argument[-5:]}')
     data = get_binary(argument[:-5])
     crc = bin(get_int_of_letters(argument[-5:]))[2:]
     crc = add_leading_zeroes(crc, 16, '0')
@@ -387,7 +388,7 @@ def check_crc(argument): # also remove it from the string
 
 
 #tested
-def icnrease_seqence_return_int(seq, bit_len): 
+def icnrease_seqence_return_int(seq): 
     seq += 1
     if seq >= pow(2, seq_bit_len):
         seq = 0
@@ -397,7 +398,7 @@ def icnrease_seqence_return_int(seq, bit_len):
 #tested
 def int_to_bits(number, bit_len=0): # does not cut too big a number
     bits = bin(number)
-    bits = bits.replace('b', '')
+    bits = bits[2:]
     cur_len = len(bits)
 
     if cur_len < bit_len:
@@ -441,18 +442,19 @@ def get_char(bits):
 def make_message(name, data, ack_fl, seq_nr):
     
     friend = get_chat(name)
+
     #first = True
     #for character in data:
     frame = ''
-    frame += bin(seq_nr)[2:] #seq nr
-
+    #frame += bin(seq_nr)[2:] #seq nr
+    frame += int_to_bits(seq_nr)
     frame += ack_fl # ack flag
     
     if friend.syn or ack_fl == '1': # synchronize flag
         frame += '0' # maybe should reverse
     else:
         frame += '1'
-    print(f'frame: {frame}, {len(str(pow(2, seq_bit_len + how_many_flags)))}')
+    #print(f'frame: {frame}, {len(str(pow(2, seq_bit_len + how_many_flags)))}')
     frame = add_leading_zeroes(get_int_string_of_bits(frame), len(str(pow(2, seq_bit_len + how_many_flags))), 'a')
     frame += data #get_binary(data) # letter in bin
     frame = crc_make(frame) # add crc of the beginning and message
@@ -467,32 +469,34 @@ def decode_message(name, data):
     #data = get_binary(data)
     # if len(get_binary(data)) <= seq_bit_len: # something is wrong with the message
     #     return
-    print(f'recieved {data}')
+    #print(f'recieved {data}')
     
     data = check_crc(data) # check and remove crc
+    print(f'recieved1 {data}')
     if data != None: # if crc showed problems with mess
         #name = get_binary(name)
         name = check_crc(name)
         if name == None: # if crc showed problems with name
             return 
         friend = get_chat(name) # makes friend if not there yet
-        print(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])
-        seq_of_message = get_int_of_letters(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])# take the seq of the mess 
+        #print(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])
         
+        seq_of_message = get_int_of_letters(data[:len(str(pow(2, seq_bit_len + how_many_flags)))])# take the seq of the mess 
+        #print(f'recieved {data}')
 
-        print(seq_of_message)
         seq_of_message = int_to_bits(seq_of_message)
+        #print(f'recieved3 {seq_of_message}')
         flags = seq_of_message[-2:]
         seq_of_message = seq_of_message[:-2]
-        print(seq_of_message)
-        if friend == None: # not in dict so make new
-            person = Chat(name)
-            chats.append(person)
+        #print(f"seq letters = {seq_of_message}")
+        
+        # if friend == None: # not in dict so make new
+        #     person = Chat(name)
+        #     chats.append(person)
         #data = data[0:-len(divisor)+1]
         if flags[0] == "1": # ack flag
-            print("removed")
             friend.remove_pending(int(seq_of_message, 2))
-            friend.seq_self = icnrease_seqence_return_int(friend.seq_self)
+            # friend.seq_self = icnrease_seqence_return_int(friend.seq_self)
             return
         else:
             if flags[1] == "1": # syn flag
@@ -533,9 +537,11 @@ def find_header(given_header):
     for header_index in range(len(bitwise_distance)): # check if two are correctest
         if header_index != index_correctest:
             if bitwise_distance[header_index] == min_dist:
-                return -1
+                return None
         
     print(headers[index_correctest])
+    if bitwise_distance[index_correctest] > 16:
+        return None
     return index_correctest
 
 
@@ -563,6 +569,7 @@ class Chat:
     def __init__(self, name, seq_friend=-1):
         self.name = name
         self.seq_self = random.randint(0, pow(2, seq_bit_len) - 1)
+        print(f"rng seq nr:{self.seq_self}")
         self.seq_friend = seq_friend
         self.syn = False # meaning not synchronized yet
         #self.pending_ack = {} # dictonary seq_nr:message ## maybe should have time to live
@@ -599,11 +606,14 @@ class Chat:
                 
     def send_pending(self):
         sock.sendto(self.pending_ack_mess, server_)
+        self.pending_ack_time = time.time()
+        #self.remove_pending(self.seq_self)
         
     def add_pending(self, message):
         #self.pending_ack[seq_nr] = (message, time.time())
         self.pending_ack_seq = self.seq_self
         self.pending_ack_mess = message
+        print(f'pending seq = {self.pending_ack_seq}')
         self.pending_ack_time = time.time()
 
     #def get_top_pending(self): # ret seq_nr
@@ -612,10 +622,14 @@ class Chat:
     def remove_pending(self, seq_nr):
         #del self.pending_ack[seq_nr]
         if seq_nr == self.pending_ack_seq:
+            print("removed")
             self.pending_ack_seq = -1
             self.pending_ack_mess = ""
-        else: # not expected seq nr in ack can only mean that the newest message was not delivered
-            self.send_pending()
+            self.seq_self = icnrease_seqence_return_int(self.seq_self)
+
+        print(f"did not remove incoming = {seq_nr}, our = {self.pending_ack_seq}")
+        #else: # not expected seq nr in ack can only mean that the newest message was not delivered
+            #self.send_pending()
             #whole_send("",self.pending_ack_mess, self)
 
 
