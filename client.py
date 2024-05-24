@@ -1,4 +1,4 @@
-SERVER_HOST = '212.132.114.68'
+SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 5382
 HOST = '127.0.0.1'
 PORT = 5378
@@ -10,7 +10,7 @@ import threading
 # print('Welcome to Chat Client. Enter you login:')
 divisor = '10001000000100011'
 ack_char = '11111111' 
-headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR", "SET-OK"]
+headers = ["DELIVERY", "SEND-OK", "LIST-OK", "BAD-RQST-BODY", "BAD-RQST-HDR", "SET-OK", "VALUE"]
 character = "u"
 seq_bit_len = 7
 # crc_len = 16
@@ -61,7 +61,8 @@ def log_in():
         send_string(string_bytes)
         #print("got through")
         data, addr = sock.recvfrom(1024) # get login response
-        print(data)
+        
+        #print(data)
         if not data:
             print("Socket is closed.")
             graceful_exit(sock)
@@ -72,7 +73,7 @@ def log_in():
             if 'HELLO' in data:
                 x = data.split()
                 x[1] = check_crc(x[1])
-                print(f"Succesfully logged in as {x[1]}!")
+                print(f"Successfully logged in as {x[1]}!")
                 return sock
                 
             else:
@@ -99,7 +100,8 @@ def send_message(terminal_input):
 
 
 def send_ack(name, friend_seq):
-    frame = make_message(name, get_char(ack_char), '1', friend_seq)
+    # frame = make_message(name, get_char(ack_char), '1', friend_seq)
+    frame = make_message(name, "", '1', friend_seq)
     send_string((f"SEND {crc_make(name)} {frame}\n").encode("utf-8"))
 
 
@@ -132,7 +134,7 @@ def get_active_list(): # send user list request
 
 
 def send_string(data):
-    #print(data)
+    print(data)
     # data = data.encode("utf-8")    
     sock.sendto(data, server_)
     # bytes_len = len(data) 
@@ -151,12 +153,10 @@ def set_params(terminal_input):
 
 def get_params(terminal_input):
     split_input = terminal_input.split(" ", 2)
-    string_bytes = (f"SET {split_input[1].upper()}\n") 
-    send_string(string_bytes)
+    string_bytes = (f"GET {split_input[1].upper()}\n") 
+    send_string(string_bytes.encode("utf-8"))
 
-def reset():
-    send_string("RESET\n")
-    
+
 
 def get_input(sock, leave):
     while not leave:
@@ -169,12 +169,12 @@ def get_input(sock, leave):
         elif "!set" in terminal_input:
             set_params(terminal_input)
         elif "!get" in terminal_input:
-            get_active_list(sock)
-        elif "!reset" in terminal_input:
-            reset()
+            get_params(terminal_input)
         elif "!quit" in terminal_input:
             leave = True
             return
+        elif "!reset" in terminal_input:
+            send_string(("RESET\n").encode("utf-8"))
         else:
             print("say what now?")
             
@@ -195,40 +195,53 @@ def handle_response(sock, leave):
     while not leave:
         
         data, ad = sock.recvfrom(1024)
-        data = data.decode("utf-8")
-
+        
+        print(data)
+        try:
+            data = data.decode("utf-8")
+        
         # tail_recv = math.floor(crc_len / 8)!
         # while not ("\n" in data): # \n is the end of the message (might be dangerous)
-        #     d, ad = sock.recvfrom(2)
+        #     d, ad = sock.recvfrom(8)
         #     d = d.decode("utf-8")
         #     data+=d
+        #     print(data)
+        #data = data.decode("utf-8")
         # for i in range(len(tail_recv)):
         #     d = sock.recv(1)
         #     d = d.decode("utf-8")
         #     data+=d
 
-        #print(data)
-        if data:
-            divided_data = data.split(" ", 2) # into three parts hdr name data
-            header = headers[find_header(divided_data[0])]
-            #print("getting close")
-            match header:
-                case "DELIVERY":
-                    print(f'got it!, {divided_data[1]}, {divided_data[2]}')
-                    decode_message(divided_data[1], divided_data[2])
-                case "LIST-OK":
-                    print_list(divided_data[1])
-                case "SEND-OK":
-                    print("The message was sent succesfully")
-                case "BAD-DEST-USER":
-                    print("The destination user does not exist")
-                case "BAD-RQST-HDR":
-                    print("Error: Unknown issue in previous message header.")
-                case "BAD-RQST-BODY":
-                    print("Error: Unknown issue in previous message body.")
-                case _:
-                    print("whoops")
-                    print(data)
+            #print(data)
+            if data:
+                divided_data = data.split(" ", 2) # into three parts hdr name data
+                header = headers[find_header(divided_data[0])]
+                #print("getting close")
+                match header:
+                    case "DELIVERY":
+                        #print(f'got it!, {divided_data[1]}, {divided_data[2]}')
+                        try:
+                            decode_message(divided_data[1], divided_data[2])
+                        except:
+                            #print("pass")
+                            pass
+                    case "LIST-OK":
+                        print_list(divided_data[1])
+                    case "SEND-OK":
+                        print("The message was sent succesfully")
+                    case "BAD-DEST-USER":
+                        print("The destination user does not exist")
+                    case "BAD-RQST-HDR":
+                        print("Error: Unknown issue in previous message header.")
+                    case "BAD-RQST-BODY":
+                        print("Error: Unknown issue in previous message body.")
+                    case "VALUE":
+                        print(f"The value of {divided_data[1]} is {divided_data[2]}")
+                    case "SET-OK":
+                        print("The value was set")
+                    case _:
+                        print("whoops")
+                        print(data)
             #if header == "DELIVERY": 
                 
             #make rest of cases
@@ -249,8 +262,11 @@ def handle_response(sock, leave):
             # else:
             #     print("whoops")
             #     print(data)
-        else:
-            print("Socket closed")
+            else:
+                print("Socket closed")
+        except:
+            pass
+
         
 
 def logged_in(sock, leave): 
@@ -258,6 +274,8 @@ def logged_in(sock, leave):
     thr = threading.Thread(target = handle_response, args = (sock,leave), daemon=True)
     thr.start()
     thr = threading.Thread(target = retransmittions, args = (leave,), daemon=True)
+    thr.start()
+    thr = threading.Thread(target = read_queued_messages, args = (leave,), daemon=True)
     thr.start()
     get_input(sock, leave)
     #thr.join()
@@ -402,7 +420,7 @@ def int_to_bits(number, bit_len=0): # does not cut too big a number
         zeroes = ["0"] * (bit_len - cur_len)
         
         zeroes.append(bits)
-        print(zeroes)
+        #print(zeroes)
         bits = ''.join(zeroes)
         
     return bits
@@ -459,6 +477,16 @@ def make_message(name, data, ack_fl, seq_nr):
 
     return frame
 
+def read_queued_messages():
+    while not leave:
+        for person in chats:
+            for seq, mess_time in person.pending_ack:
+                if seq == person.seq_friend:
+                    print(f"From {person.name}: {mess_time[0]}")
+                    send_ack(person.name, seq)
+                    del person.pending_ack[seq]
+                    person.increase()
+                
 
 def decode_message(name, data):
     data = data[:-1] # remove \n and space
@@ -467,12 +495,17 @@ def decode_message(name, data):
     # if len(get_binary(data)) <= seq_bit_len: # something is wrong with the message
     #     return
     #print(f'recieved {data}')
-    
-    data = check_crc(data) # check and remove crc
+    try:
+        data = check_crc(data) # check and remove crc
+    except:
+        return
     #print(f'recieved1 {data}')
     if data != None: # if crc showed problems with mess
         #name = get_binary(name)
-        name = check_crc(name)
+        try:
+            name = check_crc(name)
+        except:
+            return
         if name == None: # if crc showed problems with name
             return 
         friend = get_chat(name) # makes friend if not there yet
@@ -509,6 +542,7 @@ def decode_message(name, data):
                 data = data[len(str(pow(2, seq_bit_len + how_many_flags))):] # remove seq and flags for printing
                 print(f"From {name}: {data}")
             else:
+                friend.pending_ack[int(seq_of_message,2)] = data[len(str(pow(2, seq_bit_len + how_many_flags))):]
                 send_ack(name, int(seq_of_message,2)) # send expected sequence number
             
 
@@ -569,10 +603,10 @@ class Chat:
     def __init__(self, name, seq_friend=-1):
         self.name = name
         self.seq_self = random.randint(0, pow(2, seq_bit_len) - 1)
-        print(f"rng seq nr:{self.seq_self}")
+        #print(f"rng seq nr:{self.seq_self}")
         self.seq_friend = seq_friend
         self.syn = False # meaning not synchronized yet
-        #self.pending_ack = {} # dictonary seq_nr:message ## maybe should have time to live
+        self.pending_ack = {} # dictonary seq_nr:message ## maybe should have time to live
         self.pending_ack_seq = -1
         self.pending_ack_mess = b''
         self.pending_ack_time = time.time()
@@ -603,26 +637,29 @@ class Chat:
     #         del self.message_queue[relative_pos]
     #     if not flush:
     #         self.message_queue[seq_nr] = chars
-                
+
+
     def send_pending(self):
         sock.sendto(self.pending_ack_mess, server_)
         self.pending_ack_time = time.time()
         #self.remove_pending(self.seq_self)
         
-    def add_pending(self, message):
+    def add_pending(self, message, seq_of_message):
+        # self.pending_ack[seq_of_message] = (message, time.time())
         #self.pending_ack[seq_nr] = (message, time.time())
         self.pending_ack_seq = self.seq_self
         self.pending_ack_mess = message
-        print(f'pending seq = {self.pending_ack_seq}')
+        #print(f'pending seq = {self.pending_ack_seq}')
         self.pending_ack_time = time.time()
+
 
     #def get_top_pending(self): # ret seq_nr
         #return next(iter(self.pending_ack))
     
     def remove_pending(self, seq_nr):
-        #del self.pending_ack[seq_nr]
+        # del self.pending_ack[seq_nr]
         if seq_nr == self.pending_ack_seq:
-            print("removed")
+            #print("removed")
             self.pending_ack_seq = -1
             self.pending_ack_mess = ""
             self.seq_self = icnrease_seqence_return_int(self.seq_self)
